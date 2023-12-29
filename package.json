@@ -2,7 +2,7 @@
   "name": "@bettercorp/service-base-plugin-cloudflare-turnstiles",
   "license": "AGPL-3.0-only",
   "repository": {
-    "url": "https://github.com/BetterCorp/service-base-plugin-cloudflare-turnstiles"
+    "url": "git+https://github.com/BetterCorp/service-base-plugin-cloudflare-turnstiles.git"
   },
   "engines": {
     "npm": ">=9.0.0",
