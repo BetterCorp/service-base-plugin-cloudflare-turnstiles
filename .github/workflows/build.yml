@@ -1,0 +1,11 @@
+name: Build Plugin
+
+on:
+  pull_request:
+  workflow_dispatch:    
+
+jobs:
+  build-plugin:
+    uses: BetterCorp/service-base-build-workflows/.github/workflows/node.yml@master
+    with:
+      PUBLISH: false

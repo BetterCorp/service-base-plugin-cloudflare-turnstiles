@@ -1,0 +1,25 @@
+default:
+  events:
+  services:
+    www:
+      plugin: service-cloudflare-turnstiles
+      enabled: true
+      config: 
+        serverMode: true
+    web:
+      plugin: service-fastify
+      package: "@bettercorp/service-base-plugin-fastify"
+      enabled: true
+      config:
+        health: false
+        type: http
+        httpToHttpsRedirect: true
+        httpPort: 3710
+        httpsPort: 3000
+        httpsCert: null
+        httpsKey: null
+        host: 0.0.0.0
+        exclusive: false
+        readableAll: false
+        writableAll: false
+        ipv6Only: false
