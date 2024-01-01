@@ -177,11 +177,29 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
     if (parsedData.retryInterval)
       params["retry-interval"] = parsedData.retryInterval;
 
+    const JSScript = [
+      "var waitForTurnstile = async () {",
+      "let startTime = Date.now();",
+      "while (typeof turnstile === 'undefined' && Date.now() - startTime < 10000) {",
+      "await new Promise(resolve => setTimeout(resolve, 100));",
+      "}",
+      "if (typeof turnstile === 'undefined') {",
+      `document.getElementById('cf-${elemID}').innerText = 'Failed to load Captcha. Please reload the page';`,
+      `document.getElementById('cf-${elemID}-cfscript').remove();`,
+      `document.getElementById('cf-${elemID}-script').remove();`,
+      " } else {",
+      `turnstile.ready(() => { turnstile.render('#cf-${elemID}', ${JSON.stringify(
+        params
+      )}); });`,
+      `document.getElementById('cf-${elemID}-cfscript').remove();`,
+      `document.getElementById('cf-${elemID}-script').remove();`,
+      "}",
+      "};",
+      "waitForTurnstile();",
+    ].join(" ");
     let html = `<div id="cf-${elemID}"></div>`;
     html += `<script id="cf-${elemID}-cfscript" src="${scriptUrl}"></script>`;
-    html += `<script id="cf-${elemID}-script">(()=>{ turnstile.ready(() => { turnstile.render('#cf-${elemID}', ${JSON.stringify(
-      params
-    )})}); document.getElementById('cf-${elemID}-cfscript').remove(); document.getElementById('cf-${elemID}-script').remove();})()</script>`;
+    html += `<script id="cf-${elemID}-script">${JSScript}</script>`;
     return html;
   }
 
