@@ -178,7 +178,7 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
       params["retry-interval"] = parsedData.retryInterval;
 
     const JSScript = [
-      "var waitForTurnstile = async () {",
+      "var waitForTurnstile = async () => {",
       "let startTime = Date.now();",
       "while (typeof turnstile === 'undefined' && Date.now() - startTime < 10000) {",
       "await new Promise(resolve => setTimeout(resolve, 100));",
