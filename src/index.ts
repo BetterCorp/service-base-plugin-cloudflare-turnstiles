@@ -1,4 +1,4 @@
-export * from "./clients/service-cloudflare-turnstiles/plugin";
+export * from "./plugins/service-cloudflare-turnstiles/client";
 export {
   GetTurnstileHTMXFormSchema,
   ErrorCodes,

@@ -1,11 +1,8 @@
 import { BSBService, BSBServiceClient } from "@bettercorp/service-base";
-import {
-  GetTurnstileHTMXFormSchema,
-  ServiceTypes,
-} from "../../plugins/service-cloudflare-turnstiles/plugin";
+import { ErrorCode, GetTurnstileHTMXFormSchema, Plugin } from "./plugin";
 import { z } from "zod";
 
-export class CFTurnstiles extends BSBServiceClient<ServiceTypes> {
+export class CFTurnstiles extends BSBServiceClient<Plugin> {
   public readonly pluginName = "service-cloudflare-turnstiles";
   public readonly initBeforePlugins?: string[] | undefined;
   public initAfterPlugins: string[] = [];
@@ -31,10 +28,7 @@ export class CFTurnstiles extends BSBServiceClient<ServiceTypes> {
   }
   public async getTurnstileHTMXForm(
     config: z.infer<typeof GetTurnstileHTMXFormSchema>
-  ): Promise<{
-    script: string;
-    formHtml: string;
-  }> {
+  ): Promise<string> {
     return await this.events.emitEventAndReturn(
       "getTurnstileHTMXForm",
       5,
@@ -46,7 +40,7 @@ export class CFTurnstiles extends BSBServiceClient<ServiceTypes> {
     clientIP: string,
     secret: string,
     cData?: string
-  ): Promise<boolean> {
+  ): Promise<true | Array<ErrorCode>> {
     return await this.events.emitEventAndReturn(
       "verifyCaptcha",
       5,

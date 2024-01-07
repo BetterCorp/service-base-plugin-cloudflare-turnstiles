@@ -1,11 +1,12 @@
 import {
+  BSBPluginConfig,
+  BSBPluginEvents,
   BSBService,
   BSBServiceConstructor,
-  BSBServiceTypes,
   ServiceEventsBase,
 } from "@bettercorp/service-base";
 import { Fastify } from "@bettercorp/service-base-plugin-fastify";
-import { Config } from "./sec-config";
+import { secSchema } from "./sec-config";
 import { Tools } from "@bettercorp/tools/lib/Tools";
 import { z } from "zod";
 import { randomUUID } from "crypto";
@@ -25,14 +26,13 @@ export interface onReturnableEvents extends ServiceEventsBase {
     cData?: string
   ): Promise<true | Array<ErrorCode>>;
 }
-export interface ServiceTypes extends BSBServiceTypes {
+export interface ServiceTypes extends BSBPluginEvents {
   onEvents: ServiceEventsBase;
   emitEvents: ServiceEventsBase;
   onReturnableEvents: onReturnableEvents;
   emitReturnableEvents: ServiceEventsBase;
   onBroadcast: ServiceEventsBase;
   emitBroadcast: ServiceEventsBase;
-  methods: {};
 }
 
 export const GetTurnstileHTMXFormSchema = z.object({
@@ -68,12 +68,24 @@ export const GetTurnstileHTMXFormSchema = z.object({
   retryInterval: z.number().positive().max(899999).default(8000).optional(),
 });
 
+export class Config extends BSBPluginConfig<typeof secSchema> {
+  validationSchema = secSchema;
+
+  migrate(
+    toVersion: string,
+    fromVersion: string | null,
+    fromConfig: any | null
+  ) {
+    return fromConfig;
+  }
+}
+
 export class Plugin extends BSBService<Config, ServiceTypes> {
   private fastify?: Fastify;
   constructor(context: BSBServiceConstructor) {
     super(context);
     if (this.config && this.config.serverMode === true)
-      this.fastify = new Fastify(this as any);
+      this.fastify = new Fastify(this);
   }
   initBeforePlugins?: string[] | undefined;
   initAfterPlugins?: string[] | undefined;

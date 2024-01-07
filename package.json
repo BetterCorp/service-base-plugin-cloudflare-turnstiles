@@ -41,7 +41,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@bettercorp/service-base": "^8.4.50",
+    "@bettercorp/service-base": "^8.5.47",
     "@bettercorp/service-base-plugin-fastify": "^2.0.4",
     "@bettercorp/tools": "^3.7.0"
   }
