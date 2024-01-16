@@ -1,5 +1,10 @@
 import { BSBService, BSBServiceClient } from "@bettercorp/service-base";
-import { ErrorCode, GetTurnstileHTMXFormSchema, Plugin } from "./plugin";
+import {
+  ErrorCode,
+  GetTurnstileHTMXFormFunctionSchema,
+  GetTurnstileHTMXFormSchema,
+  Plugin,
+} from "./plugin";
 import { z } from "zod";
 
 export class CFTurnstiles extends BSBServiceClient<Plugin> {
@@ -27,18 +32,21 @@ export class CFTurnstiles extends BSBServiceClient<Plugin> {
     );
   }
   public async getTurnstileHTMXForm(
-    config: z.infer<typeof GetTurnstileHTMXFormSchema>
+    config: z.infer<typeof GetTurnstileHTMXFormSchema>,
+    functions?: z.infer<typeof GetTurnstileHTMXFormFunctionSchema>
   ): Promise<string> {
     return await this.events.emitEventAndReturn(
       "getTurnstileHTMXForm",
       5,
-      config
+      config,
+      functions
     );
   }
   public async verifyCaptcha(
     response: string,
     clientIP: string,
     secret: string,
+    action?: string,
     cData?: string
   ): Promise<true | Array<ErrorCode>> {
     return await this.events.emitEventAndReturn(
@@ -47,6 +55,7 @@ export class CFTurnstiles extends BSBServiceClient<Plugin> {
       response,
       clientIP,
       secret,
+      action,
       cData
     );
   }

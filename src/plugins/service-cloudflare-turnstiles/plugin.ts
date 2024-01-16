@@ -6,10 +6,21 @@ import {
   ServiceEventsBase,
 } from "@bettercorp/service-base";
 import { Fastify } from "@bettercorp/service-base-plugin-fastify";
-import { secSchema } from "./sec-config";
 import { Tools } from "@bettercorp/tools/lib/Tools";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+
+export const secSchema = z
+  .object({
+    serverMode: z.boolean().default(false).describe("Server Mode"),
+    turnstileJsPath: z
+      .string()
+      .default("/cf-turnstile.js")
+      .optional()
+      .describe("The path to the turnstile.js script"),
+  })
+  .default({})
+  .optional();
 
 export interface onReturnableEvents extends ServiceEventsBase {
   getTurnstileScriptUrl(
@@ -17,12 +28,14 @@ export interface onReturnableEvents extends ServiceEventsBase {
     onLoadFunction?: string
   ): Promise<string>;
   getTurnstileHTMXForm(
-    config: z.infer<typeof GetTurnstileHTMXFormSchema>
+    config: z.infer<typeof GetTurnstileHTMXFormSchema>,
+    functions: z.infer<typeof GetTurnstileHTMXFormFunctionSchema>
   ): Promise<string>;
   verifyCaptcha(
     response: string,
     clientIP: string,
     secret: string,
+    action?: string,
     cData?: string
   ): Promise<true | Array<ErrorCode>>;
 }
@@ -68,6 +81,19 @@ export const GetTurnstileHTMXFormSchema = z.object({
   retryInterval: z.number().positive().max(899999).default(8000).optional(),
 });
 
+export const GetTurnstileHTMXFormFunctionSchema = z
+  .object({
+    callback: z.string().max(255).optional(),
+    execution: z.string().max(255).optional(),
+    errorCallback: z.string().max(255).optional(),
+    beforeInteractiveCallback: z.string().max(255).optional(),
+    afterInteractiveCallback: z.string().max(255).optional(),
+    unsupportedCallback: z.string().max(255).optional(),
+    timeoutCallback: z.string().max(255).optional(),
+  })
+  .default({})
+  .optional();
+
 export class Config extends BSBPluginConfig<typeof secSchema> {
   validationSchema = secSchema;
 
@@ -103,13 +129,15 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
     );
     await this.events.onReturnableEvent(
       "getTurnstileHTMXForm",
-      async (config: z.infer<typeof GetTurnstileHTMXFormSchema>) =>
-        this.getTurnstileHTMXForm(config)
+      async (
+        config: z.infer<typeof GetTurnstileHTMXFormSchema>,
+        functions?: z.infer<typeof GetTurnstileHTMXFormFunctionSchema>
+      ) => this.getTurnstileHTMXForm(config, functions)
     );
     await this.events.onReturnableEvent(
       "verifyCaptcha",
-      async (response, clientIP, secret, cData) =>
-        this.verifyCaptcha(response, clientIP, secret, cData)
+      async (response, clientIP, secret, action, cData) =>
+        this.verifyCaptcha(response, clientIP, secret, action, cData)
     );
 
     if (this.fastify) {
@@ -166,11 +194,10 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
     );
   }
   private getTurnstileHTMXForm(
-    config: z.infer<typeof GetTurnstileHTMXFormSchema>
+    config: z.infer<typeof GetTurnstileHTMXFormSchema>,
+    functions?: z.infer<typeof GetTurnstileHTMXFormFunctionSchema>
   ): string {
     const parsedData = GetTurnstileHTMXFormSchema.parse(config);
-    const elemID = randomUUID();
-    const scriptUrl = this.getTurnstileScriptUrl("explicit");
     const params: Record<string, string | number> = {
       sitekey: parsedData.siteKey,
     };
@@ -188,6 +215,33 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
     if (parsedData.retry) params["retry"] = parsedData.retry;
     if (parsedData.retryInterval)
       params["retry-interval"] = parsedData.retryInterval;
+    const functionParams: Record<string, string> = {};
+    if (functions !== undefined) {
+      const parsedFunctions =
+        GetTurnstileHTMXFormFunctionSchema.parse(functions);
+      if (parsedFunctions !== undefined) {
+        if (parsedFunctions.callback)
+          functionParams["callback"] = parsedFunctions.callback;
+        if (parsedFunctions.execution)
+          functionParams["execution"] = parsedFunctions.execution;
+        if (parsedFunctions.errorCallback)
+          functionParams["error-callback"] = parsedFunctions.errorCallback;
+        if (parsedFunctions.beforeInteractiveCallback)
+          functionParams["before-interactive-callback"] =
+            parsedFunctions.beforeInteractiveCallback;
+        if (parsedFunctions.afterInteractiveCallback)
+          functionParams["after-interactive-callback"] =
+            parsedFunctions.afterInteractiveCallback;
+        if (parsedFunctions.unsupportedCallback)
+          functionParams["unsupported-callback"] =
+            parsedFunctions.unsupportedCallback;
+        if (parsedFunctions.timeoutCallback)
+          functionParams["timeout-callback"] = parsedFunctions.timeoutCallback;
+      }
+    }
+
+    const elemID = randomUUID();
+    const scriptUrl = this.getTurnstileScriptUrl("explicit");
 
     const JSScript = [
       "var waitForTurnstile = async () => {",
@@ -201,7 +255,10 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
       `document.getElementById('cf-${elemID}-script').remove();`,
       " } else {",
       `turnstile.ready(() => { turnstile.render('#cf-${elemID}', ${JSON.stringify(
-        params
+        {
+          ...params,
+          ...functionParams,
+        }
       )}); });`,
       `document.getElementById('cf-${elemID}-cfscript').remove();`,
       `document.getElementById('cf-${elemID}-script').remove();`,
@@ -219,6 +276,7 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
     response: string,
     clientIP: string,
     secret: string,
+    action?: string,
     cData?: string
   ): Promise<true | Array<ErrorCode>> {
     const idempotencyKey = randomUUID();
@@ -236,6 +294,11 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
     const resultAsJson = (await result.json()) as CFVerificationResponse;
     if (resultAsJson["error-codes"].length > 0)
       return resultAsJson["error-codes"];
+    if (Tools.isString(action)) {
+      if (resultAsJson.action !== action) {
+        return ["action-invalid"];
+      }
+    }
     if (Tools.isString(cData)) {
       if (resultAsJson.cdata !== cData) {
         return ["cdata-invalid"];
@@ -270,6 +333,8 @@ export const ErrorCodes = {
     "An internal error happened while validating the response. The request can be retried.",
   "cdata-invalid":
     "The cData passed in does not match the cData returned from the verification.",
+  "action-invalid":
+    "The action passed in does not match the action returned from the verification.",
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCodes;
