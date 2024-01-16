@@ -84,7 +84,6 @@ export const GetTurnstileHTMXFormSchema = z.object({
 export const GetTurnstileHTMXFormFunctionSchema = z
   .object({
     callback: z.string().max(255).optional(),
-    execution: z.string().max(255).optional(),
     errorCallback: z.string().max(255).optional(),
     beforeInteractiveCallback: z.string().max(255).optional(),
     afterInteractiveCallback: z.string().max(255).optional(),
@@ -215,28 +214,35 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
     if (parsedData.retry) params["retry"] = parsedData.retry;
     if (parsedData.retryInterval)
       params["retry-interval"] = parsedData.retryInterval;
-    const functionParams: Record<string, string> = {};
-    if (functions !== undefined) {
+    const functionParams: Array<string> = [];
+    if (functions !== undefined && functions !== null) {
       const parsedFunctions =
         GetTurnstileHTMXFormFunctionSchema.parse(functions);
       if (parsedFunctions !== undefined) {
         if (parsedFunctions.callback)
-          functionParams["callback"] = parsedFunctions.callback;
-        if (parsedFunctions.execution)
-          functionParams["execution"] = parsedFunctions.execution;
+          functionParams.push(
+            `tsconfig['callback'] = function (token) { ${parsedFunctions.callback} }; `
+          );
         if (parsedFunctions.errorCallback)
-          functionParams["error-callback"] = parsedFunctions.errorCallback;
+          functionParams.push(
+            `tsconfig['error-callback'] = function (errorCode) { ${parsedFunctions.errorCallback} }; `
+          );
         if (parsedFunctions.beforeInteractiveCallback)
-          functionParams["before-interactive-callback"] =
-            parsedFunctions.beforeInteractiveCallback;
+          functionParams.push(
+            `tsconfig['before-interactive-callback'] = function () { ${parsedFunctions.beforeInteractiveCallback} }; `
+          );
         if (parsedFunctions.afterInteractiveCallback)
-          functionParams["after-interactive-callback"] =
-            parsedFunctions.afterInteractiveCallback;
+          functionParams.push(
+            `tsconfig['after-interactive-callback'] = function () { ${parsedFunctions.afterInteractiveCallback} }; `
+          );
         if (parsedFunctions.unsupportedCallback)
-          functionParams["unsupported-callback"] =
-            parsedFunctions.unsupportedCallback;
+          functionParams.push(
+            `tsconfig['unsupported-callback'] = function () { ${parsedFunctions.unsupportedCallback} }; `
+          );
         if (parsedFunctions.timeoutCallback)
-          functionParams["timeout-callback"] = parsedFunctions.timeoutCallback;
+          functionParams.push(
+            `tsconfig['timeout-callback'] = function () { ${parsedFunctions.timeoutCallback} }; `
+          );
       }
     }
 
@@ -254,12 +260,10 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
       `document.getElementById('cf-${elemID}-cfscript').remove();`,
       `document.getElementById('cf-${elemID}-script').remove();`,
       " } else {",
-      `turnstile.ready(() => { turnstile.render('#cf-${elemID}', ${JSON.stringify(
-        {
-          ...params,
-          ...functionParams,
-        }
-      )}); });`,
+      `turnstile.ready(() => { ` +
+        `let tsconfig = ${JSON.stringify(params)}; ` +
+        `${functionParams.join("")}; ` +
+        `turnstile.render('#cf-${elemID}', tsconfig) }); `,
       `document.getElementById('cf-${elemID}-cfscript').remove();`,
       `document.getElementById('cf-${elemID}-script').remove();`,
       "}",
