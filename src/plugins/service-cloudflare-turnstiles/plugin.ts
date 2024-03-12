@@ -5,10 +5,10 @@ import {
   BSBServiceConstructor,
   ServiceEventsBase,
 } from "@bettercorp/service-base";
-import { Fastify } from "@bettercorp/service-base-plugin-fastify";
-import { Tools } from "@bettercorp/tools/lib/Tools";
-import { z } from "zod";
-import { randomUUID } from "crypto";
+import {Fastify} from "@bettercorp/service-base-plugin-fastify";
+import {Tools} from "@bettercorp/tools/lib/Tools";
+import {z} from "zod";
+import {randomUUID} from "crypto";
 
 export const secSchema = z
   .object({
@@ -27,10 +27,12 @@ export interface onReturnableEvents extends ServiceEventsBase {
     method?: "implicit" | "explicit",
     onLoadFunction?: string
   ): Promise<string>;
+
   getTurnstileHTMXForm(
     config: z.infer<typeof GetTurnstileHTMXFormSchema>,
     functions: z.infer<typeof GetTurnstileHTMXFormFunctionSchema>
   ): Promise<string>;
+
   verifyCaptcha(
     response: string,
     clientIP: string,
@@ -39,6 +41,7 @@ export interface onReturnableEvents extends ServiceEventsBase {
     cData?: string
   ): Promise<true | Array<ErrorCode>>;
 }
+
 export interface ServiceTypes extends BSBPluginEvents {
   onEvents: ServiceEventsBase;
   emitEvents: ServiceEventsBase;
@@ -107,17 +110,22 @@ export class Config extends BSBPluginConfig<typeof secSchema> {
 
 export class Plugin extends BSBService<Config, ServiceTypes> {
   private fastify?: Fastify;
+
   constructor(context: BSBServiceConstructor) {
     super(context);
     if (this.config && this.config.serverMode === true)
       this.fastify = new Fastify(this);
   }
+
   initBeforePlugins?: string[] | undefined;
   initAfterPlugins?: string[] | undefined;
   runBeforePlugins?: string[] | undefined;
   runAfterPlugins?: string[] | undefined;
   methods = {};
-  dispose(): void {}
+
+  dispose(): void {
+  }
+
   public run?(): void;
 
   public async init(): Promise<void> {
@@ -192,6 +200,7 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
       (Tools.isString(onLoadFunction) ? "&onload=" + onLoadFunction : "")
     );
   }
+
   private getTurnstileHTMXForm(
     config: z.infer<typeof GetTurnstileHTMXFormSchema>,
     functions?: z.infer<typeof GetTurnstileHTMXFormFunctionSchema>
@@ -251,27 +260,37 @@ export class Plugin extends BSBService<Config, ServiceTypes> {
 
     const JSScript = [
       "var waitForTurnstile = async () => {",
-      "let startTime = Date.now();",
-      "while (typeof turnstile === 'undefined' && Date.now() - startTime < 10000) {",
-      "await new Promise(resolve => setTimeout(resolve, 100));",
-      "}",
-      "if (typeof turnstile === 'undefined') {",
-      `document.getElementById('cf-${elemID}').innerText = 'Failed to load Captcha. Please reload the page';`,
-      `document.getElementById('cf-${elemID}-cfscript').remove();`,
-      `document.getElementById('cf-${elemID}-script').remove();`,
-      " } else {",
-      `turnstile.ready(() => { ` +
-        `let tsconfig = ${JSON.stringify(params)}; ` +
-        `${functionParams.join("")}; ` +
-        `turnstile.render('#cf-${elemID}', tsconfig) }); `,
-      `document.getElementById('cf-${elemID}-cfscript').remove();`,
-      `document.getElementById('cf-${elemID}-script').remove();`,
-      "}",
+      "  let imported = false;",
+      "  let startTime = Date.now();",
+      "  while (typeof turnstile === 'undefined' && Date.now() - startTime < 10000) {",
+      "    if (!imported) { ",
+      "      imported = true;",
+      "      let scriptref = document.createElement('script');",
+      "      scriptref.setAttribute('type','text/javascript');",
+      `      scriptref.setAttribute('src','${scriptUrl}');`,
+      `      scriptref.setAttribute('id','cf-${elemID}-cfscript');`,
+      '      document.head.appendChild(scriptref);',
+      "    }",
+      "    await new Promise(resolve => setTimeout(resolve, 100));",
+      "  }",
+      "  if (typeof turnstile === 'undefined') {",
+      `    document.getElementById('cf-${elemID}').innerText = 'Failed to load Captcha. Please reload the page';`,
+      //`    if (document.getElementById('cf-${elemID}-cfscript')) document.getElementById('cf-${elemID}-cfscript').remove();`,
+      `    document.getElementById('cf-${elemID}-script').remove();`,
+      "  } else {",
+      //`   turnstile.ready(() => { ` +
+      `      let tsconfig = ${JSON.stringify(params)}; ` +
+      `      ${functionParams.join("")}; ` +
+      `      turnstile.render('#cf-${elemID}', tsconfig); `,
+      //`   }); `,
+      //`     document.getElementById('cf-${elemID}-cfscript').remove();`,
+      `     document.getElementById('cf-${elemID}-script').remove();`,
+      "  }",
       "};",
       "waitForTurnstile();",
     ].join(" ");
     let html = `<div id="cf-${elemID}"></div>`;
-    html += `<script id="cf-${elemID}-cfscript" src="${scriptUrl}"></script>`;
+    //html += `<script id="cf-${elemID}-cfscript" src="${scriptUrl}"></script>`;
     html += `<script id="cf-${elemID}-script">${JSScript}</script>`;
     return html;
   }
